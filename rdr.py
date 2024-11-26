@@ -1,5 +1,6 @@
 import os
 import pickle
+from graphviz import Digraph
 
 
 class Rule:
@@ -80,6 +81,54 @@ def loadTreeFromPickle(file_path):
     return None
 
 
+# Fungsi untuk mengubah RDR tree menjadi graph menggunakan library Digraph agar dapat divisualisasikan
+def addNodesAndEdges(tree, graph, parent_id=None, position=""):
+    if tree is None:
+        return
+
+    # Buat identifier unik untuk sebuah simpul
+    nodeId = id(tree)
+
+    # Buat label untuk kondisi dari sebuah rule
+    if isinstance(tree.root.condition, bool) and tree.root.condition is True:
+        conditionText = "Kondisi: True"
+    else:
+        conditionText = f"Kondisi: {', '.join(tree.root.condition)}"
+
+    # Buat label untuk kesimpulan dari sebuah rule
+    conclusionText = f"Kesimpulan: {tree.root.conclusion}"
+
+    # Buat label untuk kasus kunci pada sebuah rule
+    if not tree.root.case:
+        caseText = "Kasus Kunci: []"
+    else:
+        caseText = f"Kasus Kunci: {', '.join(tree.root.case)}"
+
+    ruleLabel = f"{conditionText}\n{conclusionText}\n{caseText}"
+
+    # Tambahkan node yang baru dibuat ke dalam graph
+    graph.node(str(nodeId), ruleLabel)
+
+    # Jika ada parent, maka tambahkan edge
+    if parent_id is not None:
+        if position == "left":
+            graph.edge(str(parent_id), str(nodeId), xlabel="Left")
+        elif position == "right":
+            graph.edge(str(parent_id), str(nodeId), xlabel="Right")
+
+    # Panggil fungsi secara rekursif untuk anak kiri dan anak kanan
+    addNodesAndEdges(tree.left, graph, nodeId, position="left")
+    addNodesAndEdges(tree.right, graph, nodeId, position="right")
+
+
+# Fungsi to memvisualisasikan Ripple Down Rule (RDR) tree
+def visualizeRdrTree(RdrTree, treeImageFilePath):
+    dot = Digraph(comment="Ripple Down Rule Tree")
+    dot.attr(rankdir="TB", nodesep="0.5", ranksep="0.5")
+    addNodesAndEdges(RdrTree, dot)
+    dot.render(treeImageFilePath, format="png", cleanup=True)
+
+
 if __name__ == "__main__":
     # Ripple Down Rule
 
@@ -97,6 +146,26 @@ if __name__ == "__main__":
     # Inisialisasi tree dengan nilai kosong None
     tree = None
 
+    # Mendapatkan current path
+    current_directory = os.getcwd()
+
+    tree_folder = "Tree Pickles"
+    visualization_folder = "Tree Visualizations"
+
+    # Cek eksistensi folder, jika tidak ada, buat folder
+    tree_folder_path = os.path.join(current_directory, tree_folder)
+    visualization_folder_path = os.path.join(current_directory, visualization_folder)
+
+    if not os.path.exists(tree_folder_path):
+        os.makedirs(tree_folder_path)
+
+    if not os.path.exists(visualization_folder_path):
+        os.makedirs(visualization_folder_path)
+
+    # Path akhir pickles dan visualisasi
+    folderPath = tree_folder_path
+    visualizationPath = visualization_folder_path
+
     # Membuat tree RDR baru
     if inputRDR == "1":
         # Buat tree dengan menginisialisasi root yang berisi kesimpulan default
@@ -109,10 +178,51 @@ if __name__ == "__main__":
 
     # Menggunakan RDR yang sudah disimpan
     elif inputRDR == "2":
-        treeFilePath = input("Masukkan path dari file tree yang akan digunakan: ")
-        tree = loadTreeFromPickle(treeFilePath)
+        # Cari dan hitung banyak file tree yang tersimpan pada folder yang telah ditentukan
+        listOfTreeFileName = [
+            file for file in os.listdir(folderPath) if file.endswith(".pkl")
+        ]
+        numOfTreeFile = len(listOfTreeFileName)
 
-    if tree is not None:
+        # Jika tidak ada file tree yang disimpan, maka program berhenti
+        if numOfTreeFile == 0:
+            print("Tidak ada file tree yang disimpan")
+        # Jika ada file tree yang disimpan, maka tampilkan daftar nama file tree dan minta pengguna untuk memilih file tree yang ingin digunakan
+        else:
+            print()
+            print("Daftar nama file tree yang disimpan:")
+            for i in range(len(listOfTreeFileName)):
+                print(str(i + 1) + ". " + listOfTreeFileName[i])
+
+            # Tanya pengguna file tree mana yang ingin digunakan
+            print()
+            while True:
+                inputTreeFileNumber = input(
+                    "Masukkan nomor file tree yang ingin digunakan: "
+                )
+                if inputTreeFileNumber.isdigit() and not inputTreeFileNumber.startswith(
+                    "0"
+                ):
+                    inputTreeFileNumberInt = int(inputTreeFileNumber)
+                    if inputTreeFileNumberInt >= 1 and inputTreeFileNumberInt <= (
+                        len(listOfTreeFileName) + 1
+                    ):
+                        break
+                    else:
+                        print(
+                            "Nomor file tree tidak valid. Nomor file tree yang dimasukkan harus sesuai dengan pilihan pada daftar yang ditampilkan."
+                        )
+                else:
+                    print(
+                        "Nomor file tree tidak valid. Nomor file tree yang dimasukkan harus sesuai dengan pilihan pada daftar yang ditampilkan."
+                    )
+            inputTreeFileName = listOfTreeFileName[inputTreeFileNumberInt - 1]
+            treeFilePath = folderPath + "/" + inputTreeFileName
+            tree = loadTreeFromPickle(treeFilePath)
+
+    if tree is None:
+        print("Tree gagal dibuat atau gagal diload dari file")
+    else:
         # Print Tree RDR yang digunakan
         print("Tree RDR")
         tree.printPreorder()
@@ -139,7 +249,7 @@ if __name__ == "__main__":
             foundTree = tree.search(data, None)
             print("Kesimpulan: " + foundTree.root.conclusion)
 
-            # Tanya apakah pakar pengguna menyetujui kesimpulan yang diberikan
+            # Tanya apakah pengguna pakar menyetujui kesimpulan yang diberikan
             while True:
                 print("Apakah Anda setuju dengan kesimpulan yang diberikan?")
                 print("1. Setuju")
@@ -220,7 +330,7 @@ if __name__ == "__main__":
                 else:
                     print("Jawaban tidak valid. Masukkan 1 atau 2")
 
-        # Tanya apakah ingin menyimpan tree yang sudah digunakan
+        # Tanya pengguna apakah ingin menyimpan tree yang sudah digunakan
         print()
         while True:
             print("Apakah Anda ingin menyimpan tree yang sudah digunakan?")
@@ -236,11 +346,34 @@ if __name__ == "__main__":
         if inputSave == "1":
             print()
             if inputRDR == "1":
-                print("File akan disimpan pada current directory")
+                print("File akan disimpan pada direktori " + folderPath)
                 newTreeFilename = input("Masukkan nama file tree tanpa extension: ")
-                newTreeFilePath = newTreeFilename + ".pkl"
+                newTreeFilePath = folderPath + "/" + newTreeFilename + ".pkl"
             else:
                 newTreeFilePath = treeFilePath
             with open(newTreeFilePath, "wb") as f:
                 pickle.dump(tree, f)
-            print("File " + newTreeFilePath + " telah berhasil disimpan")
+            print("File tree telah berhasil disimpan")
+
+        # Tanya pengguna apakah ingin menyimpan hasil visualisasi tree
+        print()
+        while True:
+            print("Apakah Anda ingin menyimpan visualisasi tree yang sudah digunakan?")
+            print("1. Ya")
+            print("2. Tidak")
+            inputImageSave = input("Jawaban: ")
+            if inputImageSave == "1" or inputImageSave == "2":
+                break
+            else:
+                print("Jawaban tidak valid. Masukkan 1 atau 2")
+
+        # Jika pengguna ingin menyimpan visualisasi tree, simpan visualisasi tree sebagai file png
+        if inputImageSave == "1":
+            print()
+            print("File visualisasi akan disimpan pada direktori " + visualizationPath)
+            treeImageFilename = input(
+                "Masukkan nama file visualisasi tree tanpa extension: "
+            )
+            treeImageFilePath = visualizationPath + "/" + treeImageFilename
+            visualizeRdrTree(tree, treeImageFilePath)
+            print("File visualisasi telah berhasil disimpan")
